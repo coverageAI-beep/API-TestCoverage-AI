@@ -1,0 +1,6 @@
+{
+  "name": "CoverageAI",
+  "description": "Enterprise-grade QA engineering platform for managing API specifications, requirements, and test suites.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
