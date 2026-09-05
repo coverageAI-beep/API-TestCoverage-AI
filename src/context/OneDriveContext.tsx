@@ -46,6 +46,7 @@ interface OneDriveContextType {
     fileName: string,
     content: string
   ) => Promise<OneDriveFileItem>;
+  fetchFileContent: (itemId: string, projectId?: string) => Promise<string>;
 }
 
 const OneDriveContext = createContext<OneDriveContextType | undefined>(undefined);
@@ -322,6 +323,22 @@ export function OneDriveProvider({ children }: { children: ReactNode }) {
     return data.file;
   };
 
+  const fetchFileContent = async (itemId: string, projectId?: string): Promise<string> => {
+    if (!user) throw new Error('Authentication required');
+    const query = new URLSearchParams({
+      userId: user.id,
+      itemId,
+      projectId: projectId || '',
+    });
+    const res = await fetch(`/api/onedrive/file-content?${query.toString()}`);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || 'Failed to fetch file content from OneDrive');
+    }
+    const data = await res.json();
+    return data.content || '';
+  };
+
   return (
     <OneDriveContext.Provider
       value={{
@@ -338,6 +355,7 @@ export function OneDriveProvider({ children }: { children: ReactNode }) {
         provisionProjectFolder,
         fetchProjectFiles,
         uploadFile,
+        fetchFileContent,
       }}
     >
       {children}

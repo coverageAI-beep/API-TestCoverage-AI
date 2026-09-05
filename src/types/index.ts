@@ -89,9 +89,95 @@ export type NavigationView =
   | 'files'
   | 'settings';
 
+export type ApiCoverageStatus = 'not_analyzed' | 'partial' | 'good';
+
+export type ApiAuthType = 'none' | 'bearer' | 'apiKey' | 'oauth2' | 'basic' | 'custom';
+
+export interface ApiEndpointError {
+  id: string;
+  statusCode: number;
+  name: string;
+  description?: string;
+  schema?: string;
+}
+
+export interface ApiEndpointParam {
+  name: string;
+  in: 'path' | 'query' | 'header';
+  required: boolean;
+  type?: string;
+  description?: string;
+}
+
+export interface ApiEndpoint {
+  id: string;
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'HEAD' | 'OPTIONS';
+  path: string;
+  summary: string;
+  description?: string;
+  parameters?: ApiEndpointParam[];
+  requestSchema?: string;
+  responseSchema?: string;
+  responseStatusCode?: number;
+  errorResponses: ApiEndpointError[];
+}
+
+export interface ApiSpec {
+  id: string;
+  projectId: string;
+  name: string;
+  description?: string;
+  baseUrl: string;
+  version?: string;
+  authType: ApiAuthType;
+  authDetails?: string;
+  businessRules: string;
+  validationRules: string;
+  endpoints: ApiEndpoint[];
+  oneDriveItemId?: string;
+  oneDriveWebUrl?: string;
+  createdAt: string;
+  updatedAt: string;
+  sourceType: 'manual' | 'openapi_upload' | 'openapi_paste';
+  rawSpecContent?: string;
+}
+
+export interface ApiReference {
+  id: string;
+  projectId: string;
+  name: string;
+  baseUrl: string;
+  endpointCount: number;
+  oneDriveItemId?: string;
+  oneDriveWebUrl?: string;
+  coverageStatus: ApiCoverageStatus;
+  authType: ApiAuthType;
+  createdAt: string;
+  updatedAt: string;
+  description?: string;
+}
+
 export interface ToastMessage {
   id: string;
   type: 'success' | 'error' | 'info';
   title: string;
   description?: string;
+}
+
+export type AiProviderId = 'openai' | 'gemini' | 'anthropic';
+
+export interface AiProviderInfo {
+  id: AiProviderId;
+  name: string;
+  isConfigured: boolean;
+  maskedKey?: string;
+  lastTestedAt?: string;
+  lastStatus?: 'success' | 'failure';
+  lastError?: string;
+  configuredAt?: string;
+}
+
+export interface AiProvidersConfigResponse {
+  defaultProvider: AiProviderId;
+  providers: Record<AiProviderId, AiProviderInfo>;
 }

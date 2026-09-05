@@ -16,8 +16,20 @@ import {
   listGraphFolderChildren,
   getDemoProjectFiles,
   addDemoFile,
+  getGraphFileContent,
+  getDemoFileContent,
   type StoredOneDriveTokens,
 } from './server/onedrive';
+import {
+  getSafeAiProvidersConfig,
+  saveAiProviderKey,
+  deleteAiProviderKey,
+  setDefaultAiProvider,
+  getDecryptedKey,
+  recordTestResult,
+  testProviderConnection,
+  type AiProviderId,
+} from './server/aiSecrets';
 
 async function startServer() {
   const app = express();
@@ -578,6 +590,170 @@ async function startServer() {
     } catch (err: any) {
       console.error('Failed to upload file to OneDrive:', err);
       res.status(500).json({ error: err.message || 'Failed to upload file to OneDrive' });
+    }
+  });
+
+  // 10. Get File Content from OneDrive
+  app.get('/api/onedrive/file-content', async (req: Request, res: Response) => {
+    const userId = (req.query.userId as string) || '';
+    const itemId = (req.query.itemId as string) || '';
+    const projectId = (req.query.projectId as string) || '';
+
+    if (!userId || !itemId) {
+      res.status(400).json({ error: 'userId and itemId are required' });
+      return;
+    }
+
+    const tokens = getStoredTokens(userId);
+    if (!tokens) {
+      res.status(401).json({ error: 'NOT_CONNECTED' });
+      return;
+    }
+
+    if (tokens.isDemo) {
+      const content = getDemoFileContent(projectId, itemId);
+      res.json({ content: content || '' });
+      return;
+    }
+
+    try {
+      const accessToken = await getValidAccessToken(userId);
+      const content = await getGraphFileContent(accessToken, itemId);
+      res.json({ content });
+    } catch (err: any) {
+      console.error('Failed to get file content from OneDrive:', err);
+      res.status(500).json({ error: err.message || 'Failed to download file content' });
+    }
+  });
+
+  // ==========================================
+  // AI Providers & Encrypted Key Management
+  // ==========================================
+
+  // 1. Get user AI Provider configuration (Only returns masked keys, NEVER raw secrets)
+  app.get('/api/ai/config', (req: Request, res: Response) => {
+    const userId = (req.query.userId as string) || 'default_user';
+    try {
+      const config = getSafeAiProvidersConfig(userId);
+      res.json(config);
+    } catch (err: any) {
+      console.error('Failed to get AI provider config:', err);
+      res.status(500).json({ error: err.message || 'Failed to retrieve AI provider configuration' });
+    }
+  });
+
+  // 2. Save an encrypted provider key (Server-side AES-256-GCM encryption)
+  app.post('/api/ai/save-key', (req: Request, res: Response) => {
+    const { userId, provider, apiKey } = req.body;
+    if (!userId || !provider || !apiKey) {
+      res.status(400).json({ error: 'userId, provider, and apiKey are required' });
+      return;
+    }
+
+    if (!['openai', 'gemini', 'anthropic'].includes(provider)) {
+      res.status(400).json({ error: `Invalid provider: ${provider}. Must be 'openai', 'gemini', or 'anthropic'` });
+      return;
+    }
+
+    try {
+      const savedInfo = saveAiProviderKey(userId, provider as AiProviderId, apiKey);
+      res.json({ success: true, provider: savedInfo });
+    } catch (err: any) {
+      console.error(`Failed to save AI key for ${provider}:`, err);
+      res.status(500).json({ error: err.message || 'Failed to save encrypted API key' });
+    }
+  });
+
+  // 3. Remove an encrypted provider key
+  app.post('/api/ai/delete-key', (req: Request, res: Response) => {
+    const { userId, provider } = req.body;
+    if (!userId || !provider) {
+      res.status(400).json({ error: 'userId and provider are required' });
+      return;
+    }
+
+    try {
+      deleteAiProviderKey(userId, provider as AiProviderId);
+      res.json({ success: true, message: `Key for ${provider} removed.` });
+    } catch (err: any) {
+      console.error(`Failed to delete AI key for ${provider}:`, err);
+      res.status(500).json({ error: err.message || 'Failed to remove API key' });
+    }
+  });
+
+  // 4. Update the default provider preference
+  app.post('/api/ai/set-default', (req: Request, res: Response) => {
+    const { userId, defaultProvider } = req.body;
+    if (!userId || !defaultProvider) {
+      res.status(400).json({ error: 'userId and defaultProvider are required' });
+      return;
+    }
+
+    if (!['openai', 'gemini', 'anthropic'].includes(defaultProvider)) {
+      res.status(400).json({ error: `Invalid provider: ${defaultProvider}` });
+      return;
+    }
+
+    try {
+      setDefaultAiProvider(userId, defaultProvider as AiProviderId);
+      res.json({ success: true, defaultProvider });
+    } catch (err: any) {
+      console.error('Failed to set default AI provider:', err);
+      res.status(500).json({ error: err.message || 'Failed to update default provider' });
+    }
+  });
+
+  // 5. Test connection with minimal, low-cost call (e.g. list models)
+  app.post('/api/ai/test-connection', async (req: Request, res: Response) => {
+    const { userId, provider, apiKey } = req.body;
+    if (!userId || !provider) {
+      res.status(400).json({ error: 'userId and provider are required' });
+      return;
+    }
+
+    if (!['openai', 'gemini', 'anthropic'].includes(provider)) {
+      res.status(400).json({ error: `Invalid provider: ${provider}` });
+      return;
+    }
+
+    // Use passed apiKey or retrieve stored decrypted key
+    let keyToTest = (apiKey || '').trim();
+    const isStoredKey = !keyToTest;
+
+    if (!keyToTest) {
+      keyToTest = getDecryptedKey(userId, provider as AiProviderId) || '';
+    }
+
+    if (!keyToTest) {
+      res.status(400).json({
+        success: false,
+        message: `No API key provided or configured for ${provider}. Please enter a valid API key first.`,
+        latencyMs: 0,
+      });
+      return;
+    }
+
+    try {
+      const result = await testProviderConnection(provider as AiProviderId, keyToTest);
+
+      // If testing stored key, record the test result
+      if (isStoredKey) {
+        recordTestResult(
+          userId,
+          provider as AiProviderId,
+          result.success ? 'success' : 'failure',
+          result.success ? undefined : result.message
+        );
+      }
+
+      res.json(result);
+    } catch (err: any) {
+      console.error(`Error during connection test for ${provider}:`, err);
+      res.status(500).json({
+        success: false,
+        message: err.message || 'Connection test encountered an internal error',
+        latencyMs: 0,
+      });
     }
   });
 

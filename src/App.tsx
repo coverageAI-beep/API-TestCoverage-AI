@@ -10,6 +10,7 @@ import { ProjectList } from './components/projects/ProjectList';
 import { DashboardView } from './components/views/DashboardView';
 import { SettingsView } from './components/views/SettingsView';
 import { FilesView } from './components/views/FilesView';
+import { ApisView } from './components/views/ApisView';
 import { PlaceholderView } from './components/views/PlaceholderView';
 import { ShieldCheck, Loader2 } from 'lucide-react';
 
@@ -48,8 +49,11 @@ function MainApp() {
           {currentView === 'files' && (
             <FilesView onNavigate={setCurrentView} />
           )}
+          {currentView === 'apis' && (
+            <ApisView onNavigate={setCurrentView} />
+          )}
           {currentView === 'settings' && <SettingsView />}
-          {['apis', 'requirements', 'test-cases'].includes(currentView) && (
+          {['requirements', 'test-cases'].includes(currentView) && (
             <PlaceholderView view={currentView} onNavigate={setCurrentView} />
           )}
         </AppShell>

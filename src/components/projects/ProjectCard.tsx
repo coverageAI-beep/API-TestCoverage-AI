@@ -24,6 +24,7 @@ interface ProjectCardProps {
   onSelect: (project: Project) => void;
   onEdit: (project: Project) => void;
   onDeleteRequest: (project: Project) => void;
+  onNavigateView?: (view: 'apis' | 'projects' | 'files') => void;
 }
 
 export function ProjectCard({
@@ -32,6 +33,7 @@ export function ProjectCard({
   onSelect,
   onEdit,
   onDeleteRequest,
+  onNavigateView,
 }: ProjectCardProps) {
   return (
     <div
@@ -90,6 +92,18 @@ export function ProjectCard({
                 >
                   {isActive ? 'Workspace Selected' : 'Set as Active'}
                 </DropdownItem>
+                {onNavigateView && (
+                  <DropdownItem
+                    icon={<FileCode2 className="w-3.5 h-3.5 text-indigo-600" />}
+                    onClick={() => {
+                      close();
+                      onSelect(project);
+                      onNavigateView('apis');
+                    }}
+                  >
+                    View API Specifications
+                  </DropdownItem>
+                )}
                 <DropdownItem
                   icon={<Edit2 className="w-3.5 h-3.5" />}
                   onClick={() => {

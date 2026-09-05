@@ -136,14 +136,24 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
               </p>
             </div>
 
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onNavigate('projects')}
-              rightIcon={<ArrowRight className="w-3.5 h-3.5" />}
-            >
-              Manage Specifications
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onNavigate('apis')}
+                leftIcon={<FileCode2 className="w-3.5 h-3.5 text-indigo-600" />}
+              >
+                API Contracts ({activeProject.stats?.apiCount ?? 0})
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onNavigate('projects')}
+                rightIcon={<ArrowRight className="w-3.5 h-3.5" />}
+              >
+                Workspaces
+              </Button>
+            </div>
           </div>
 
           <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">

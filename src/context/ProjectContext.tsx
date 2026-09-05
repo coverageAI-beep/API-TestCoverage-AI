@@ -39,6 +39,7 @@ interface ProjectContextType {
     projectId: string,
     folder: ProjectOneDriveFolder
   ) => Promise<Project>;
+  updateProjectApiCount: (projectId: string, count: number) => void;
   deleteProject: (id: string) => Promise<void>;
   refreshProjects: () => Promise<void>;
   isCreateModalOpen: boolean;
@@ -151,6 +152,19 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     return updated;
   };
 
+  const updateProjectApiCount = (projectId: string, count: number) => {
+    setProjects((prev) =>
+      prev.map((p) =>
+        p.id === projectId ? { ...p, stats: { ...p.stats, apiCount: count } } : p
+      )
+    );
+    if (activeProject?.id === projectId) {
+      setActiveProject((prev) =>
+        prev ? { ...prev, stats: { ...prev.stats, apiCount: count } } : null
+      );
+    }
+  };
+
   const updateProject = async (
     id: string,
     data: {
@@ -204,6 +218,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         createProject,
         updateProject,
         attachOneDriveFolder,
+        updateProjectApiCount,
         deleteProject,
         refreshProjects: loadProjects,
         isCreateModalOpen,

@@ -5,6 +5,7 @@ import { useOneDrive } from '../../context/OneDriveContext';
 import { Button } from '../ui/Button';
 import { useToast } from '../ui/Toast';
 import { getInitials } from '../../lib/utils';
+import { AiProvidersSettings } from '../settings/AiProvidersSettings';
 import {
   User,
   Shield,
@@ -17,6 +18,7 @@ import {
   Cloud,
   ExternalLink,
   RefreshCw,
+  Sparkles,
 } from 'lucide-react';
 
 export function SettingsView() {
@@ -33,6 +35,7 @@ export function SettingsView() {
     disconnectOneDrive,
   } = useOneDrive();
   const { showToast } = useToast();
+  const [activeTab, setActiveTab] = useState<'ai' | 'onedrive' | 'profile' | 'all'>('ai');
   const [copiedVar, setCopiedVar] = useState<string | null>(null);
   const [isConnecting, setIsConnecting] = useState<boolean>(false);
 
@@ -93,17 +96,77 @@ export function SettingsView() {
   return (
     <div className="flex flex-col gap-8 max-w-4xl">
       {/* Header */}
-      <div>
-        <h1 className="text-xl font-bold tracking-tight text-stone-900">
-          Workspace Settings
-        </h1>
-        <p className="mt-1 text-xs text-stone-500">
-          Manage your QA authentication profile, project isolation, and environment configuration.
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-bold tracking-tight text-stone-900">
+            Workspace Settings
+          </h1>
+          <p className="mt-1 text-xs text-stone-500">
+            Manage your AI model providers, QA authentication profile, and environment configuration.
+          </p>
+        </div>
+
+        {/* Settings Navigation Tabs */}
+        <div className="flex items-center bg-stone-100 p-1 rounded-lg border border-stone-200 self-start sm:self-auto">
+          <button
+            type="button"
+            onClick={() => setActiveTab('ai')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+              activeTab === 'ai'
+                ? 'bg-white text-stone-900 shadow-xs'
+                : 'text-stone-600 hover:text-stone-900'
+            }`}
+          >
+            <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+            <span>AI Providers</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('onedrive')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+              activeTab === 'onedrive'
+                ? 'bg-white text-stone-900 shadow-xs'
+                : 'text-stone-600 hover:text-stone-900'
+            }`}
+          >
+            <Cloud className="w-3.5 h-3.5 text-indigo-600" />
+            <span>OneDrive</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('profile')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+              activeTab === 'profile'
+                ? 'bg-white text-stone-900 shadow-xs'
+                : 'text-stone-600 hover:text-stone-900'
+            }`}
+          >
+            <User className="w-3.5 h-3.5 text-stone-600" />
+            <span>Profile & Scope</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('all')}
+            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+              activeTab === 'all'
+                ? 'bg-white text-stone-900 shadow-xs'
+                : 'text-stone-600 hover:text-stone-900'
+            }`}
+          >
+            All
+          </button>
+        </div>
       </div>
 
+      {/* AI Providers Section */}
+      {(activeTab === 'ai' || activeTab === 'all') && (
+        <AiProvidersSettings />
+      )}
+
       {/* User Profile Card */}
-      <div className="bg-white rounded-xl border border-stone-200 p-6 shadow-2xs">
+      {(activeTab === 'profile' || activeTab === 'all') && (
+        <>
+          <div className="bg-white rounded-xl border border-stone-200 p-6 shadow-2xs">
         <div className="flex items-center gap-2 pb-4 border-b border-stone-100">
           <User className="w-4 h-4 text-stone-500" />
           <h2 className="text-sm font-semibold text-stone-900">User Identity & Profile</h2>
@@ -251,88 +314,92 @@ export function SettingsView() {
           </div>
         </div>
       </div>
+      </>
+    )}
 
       {/* Microsoft OneDrive Integration Card */}
-      <div className="bg-white border border-stone-200 rounded-lg p-6 shadow-2xs">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-md bg-indigo-50 border border-indigo-200 flex items-center justify-center text-indigo-600">
-              <Cloud className="w-5 h-5" />
+      {(activeTab === 'onedrive' || activeTab === 'all') && (
+        <div className="bg-white border border-stone-200 rounded-lg p-6 shadow-2xs">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-md bg-indigo-50 border border-indigo-200 flex items-center justify-center text-indigo-600">
+                <Cloud className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-stone-900">
+                  Microsoft OneDrive (Graph REST API)
+                </h3>
+                <p className="text-xs text-stone-500">
+                  Delegated scope: <code className="font-mono text-stone-700 bg-stone-100 px-1 py-0.5 rounded">Files.ReadWrite.AppFolder</code>
+                </p>
+              </div>
             </div>
-            <div>
-              <h3 className="text-sm font-semibold text-stone-900">
-                Microsoft OneDrive (Graph REST API)
-              </h3>
-              <p className="text-xs text-stone-500">
-                Delegated scope: <code className="font-mono text-stone-700 bg-stone-100 px-1 py-0.5 rounded">Files.ReadWrite.AppFolder</code>
-              </p>
-            </div>
+            <span
+              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border ${
+                isConnected
+                  ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                  : 'bg-stone-50 text-stone-700 border-stone-200'
+              }`}
+            >
+              {isConnected ? (
+                <>
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                  {isDemo ? 'Sandbox Demo Connected' : 'OneDrive Active'}
+                </>
+              ) : (
+                <>
+                  <AlertCircle className="w-3.5 h-3.5 text-stone-400" />
+                  Not Connected
+                </>
+              )}
+            </span>
           </div>
-          <span
-            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border ${
-              isConnected
-                ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                : 'bg-stone-50 text-stone-700 border-stone-200'
-            }`}
-          >
-            {isConnected ? (
-              <>
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                {isDemo ? 'Sandbox Demo Connected' : 'OneDrive Active'}
-              </>
-            ) : (
-              <>
-                <AlertCircle className="w-3.5 h-3.5 text-stone-400" />
-                Not Connected
-              </>
-            )}
-          </span>
-        </div>
 
-        <p className="mt-4 text-xs text-stone-600 leading-relaxed">
-          CoverageAI utilizes the Microsoft Graph REST API via a standard OAuth 2.0 authorization code flow with automatic token refresh. All API contracts, requirements matrices, and test suites are stored in your dedicated AppFolder.
-        </p>
+          <p className="mt-4 text-xs text-stone-600 leading-relaxed">
+            CoverageAI utilizes the Microsoft Graph REST API via a standard OAuth 2.0 authorization code flow with automatic token refresh. All API contracts, requirements matrices, and test suites are stored in your dedicated AppFolder.
+          </p>
 
-        {isConnected && account && (
-          <div className="mt-4 bg-stone-50 border border-stone-200 rounded-md p-3 text-xs flex items-center justify-between flex-wrap gap-2">
-            <div>
-              <span className="text-stone-500 block text-[11px]">Connected Microsoft Account:</span>
-              <span className="font-semibold text-stone-900">{account.email}</span>{' '}
-              <span className="text-stone-500">({account.name})</span>
+          {isConnected && account && (
+            <div className="mt-4 bg-stone-50 border border-stone-200 rounded-md p-3 text-xs flex items-center justify-between flex-wrap gap-2">
+              <div>
+                <span className="text-stone-500 block text-[11px]">Connected Microsoft Account:</span>
+                <span className="font-semibold text-stone-900">{account.email}</span>{' '}
+                <span className="text-stone-500">({account.name})</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={disconnectOneDrive}
+                >
+                  Disconnect OneDrive
+                </Button>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
+          )}
+
+          {!isConnected && (
+            <div className="mt-4 flex items-center gap-3">
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={handleConnectOneDrive}
+                disabled={isConnecting}
+                leftIcon={<Cloud className="w-4 h-4" />}
+              >
+                {isConnecting ? 'Opening OAuth...' : 'Connect Microsoft OneDrive'}
+              </Button>
               <Button
                 variant="outline"
                 size="sm"
-                onClick={disconnectOneDrive}
+                onClick={connectDemoOneDrive}
               >
-                Disconnect OneDrive
+                Connect with Demo Sandbox
               </Button>
             </div>
-          </div>
-        )}
-
-        {!isConnected && (
-          <div className="mt-4 flex items-center gap-3">
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={handleConnectOneDrive}
-              disabled={isConnecting}
-              leftIcon={<Cloud className="w-4 h-4" />}
-            >
-              {isConnecting ? 'Opening OAuth...' : 'Connect Microsoft OneDrive'}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={connectDemoOneDrive}
-            >
-              Connect with Demo Sandbox
-            </Button>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

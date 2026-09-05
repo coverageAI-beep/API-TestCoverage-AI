@@ -22,6 +22,7 @@ import {
   Edit2,
   ExternalLink,
   Check,
+  FileCode2,
 } from 'lucide-react';
 import { Dropdown, DropdownItem } from '../ui/Dropdown';
 
@@ -194,6 +195,7 @@ export function ProjectList({ onNavigateView }: ProjectListProps) {
               onSelect={handleSelectProject}
               onEdit={openEditModal}
               onDeleteRequest={setProjectToDelete}
+              onNavigateView={onNavigateView}
             />
           ))}
 
@@ -313,6 +315,18 @@ export function ProjectList({ onNavigateView }: ProjectListProps) {
                           >
                             {({ close }) => (
                               <>
+                                {onNavigateView && (
+                                  <DropdownItem
+                                    icon={<FileCode2 className="w-3.5 h-3.5 text-indigo-600" />}
+                                    onClick={() => {
+                                      close();
+                                      handleSelectProject(project);
+                                      onNavigateView('apis');
+                                    }}
+                                  >
+                                    View API Specs
+                                  </DropdownItem>
+                                )}
                                 <DropdownItem
                                   icon={<Edit2 className="w-3.5 h-3.5" />}
                                   onClick={() => {

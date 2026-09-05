@@ -44,10 +44,10 @@ export function Sidebar({ currentView, onNavigate }: SidebarProps) {
   }> = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'projects', label: 'Projects', icon: FolderGit2 },
-    { id: 'apis', label: 'APIs', icon: FileCode2, badge: 'P2', isP2: true },
+    { id: 'apis', label: 'APIs', icon: FileCode2 },
     { id: 'requirements', label: 'Requirements', icon: CheckSquare, isP2: true },
     { id: 'test-cases', label: 'Test Cases', icon: FlaskConical, isP2: true },
-    { id: 'files', label: 'Files', icon: Files, badge: 'P2', isP2: true },
+    { id: 'files', label: 'OneDrive Files', icon: Files },
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
 

@@ -364,6 +364,28 @@ export async function listGraphFolderChildren(
   return data.value || [];
 }
 
+// Download raw content of a file from OneDrive
+export async function getGraphFileContent(
+  accessToken: string,
+  itemId: string
+): Promise<string> {
+  const response = await fetch(
+    `https://graph.microsoft.com/v1.0/me/drive/items/${itemId}/content`,
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    }
+  );
+
+  if (!response.ok) {
+    const err = await response.text();
+    throw new Error(`Failed to fetch file content for item ${itemId}: ${err}`);
+  }
+
+  return await response.text();
+}
+
 // ==========================================
 // In-Memory Demo Storage for Sandbox Mode
 // ==========================================
@@ -506,4 +528,10 @@ export function addDemoFile(
   };
   files.unshift(newItem);
   return newItem;
+}
+
+export function getDemoFileContent(projectId: string, itemId: string): string | null {
+  const files = getDemoProjectFiles(projectId);
+  const found = files.find((f) => f.id === itemId);
+  return found?.content || null;
 }
