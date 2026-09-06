@@ -1,8 +1,11 @@
-import { useState } from 'react';
-import type { ApiSpec, ApiEndpoint, ApiCoverageStatus } from '../../types';
+import { useState, useEffect } from 'react';
+import type { ApiSpec, ApiEndpoint, ApiCoverageStatus, RequirementsDiffData } from '../../types';
 import { formatRelativeTime } from '../../lib/utils';
 import { Button } from '../ui/Button';
 import { useToast } from '../ui/Toast';
+import { useAuth } from '../../context/AuthContext';
+import { useProjects } from '../../context/ProjectContext';
+import { RequirementsDiffModal } from '../requirements/RequirementsDiffModal';
 import {
   ArrowLeft,
   Edit2,
@@ -23,6 +26,8 @@ import {
   FileText,
   ChevronDown,
   ChevronUp,
+  Sparkles,
+  CheckSquare,
 } from 'lucide-react';
 
 interface ApiDetailViewProps {
@@ -31,6 +36,8 @@ interface ApiDetailViewProps {
   onBack: () => void;
   onEdit: (spec: ApiSpec) => void;
   onDelete: (spec: ApiSpec) => void;
+  onViewRequirements?: (apiId: string) => void;
+  onViewTestCases?: (apiId: string) => void;
 }
 
 export function ApiDetailView({
@@ -39,11 +46,202 @@ export function ApiDetailView({
   onBack,
   onEdit,
   onDelete,
+  onViewRequirements,
+  onViewTestCases,
 }: ApiDetailViewProps) {
   const { showToast } = useToast();
+  const { user } = useAuth();
+  const { activeProject } = useProjects();
   const [copiedText, setCopiedText] = useState<string | null>(null);
   const [selectedMethodFilter, setSelectedMethodFilter] = useState<string>('ALL');
   const [activeTab, setActiveTab] = useState<'structured' | 'rawJson'>('structured');
+
+  // Requirements generation & diff state
+  const [isGenerating, setIsGenerating] = useState<boolean>(false);
+  const [diffData, setDiffData] = useState<RequirementsDiffData | null>(null);
+  const [isOverwriting, setIsOverwriting] = useState<boolean>(false);
+  const [hasRequirements, setHasRequirements] = useState<boolean>(false);
+  const [reqFileName, setReqFileName] = useState<string | null>(null);
+
+  // Test cases status state
+  const [hasTestCases, setHasTestCases] = useState<boolean>(false);
+  const [testCasesCount, setTestCasesCount] = useState<number>(0);
+  const [tcFileName, setTcFileName] = useState<string | null>(null);
+
+  // Check if requirements and test cases files exist in OneDrive
+  useEffect(() => {
+    if (!user || !activeProject) return;
+    let isMounted = true;
+    const checkReq = async () => {
+      try {
+        const reqsFolderId = activeProject.oneDriveFolder?.subfolders.requirements?.id || '';
+        const params = new URLSearchParams({
+          userId: user.id,
+          projectId: activeProject.id,
+          apiName: spec.name,
+          reqsFolderId,
+        });
+        const res = await fetch(`/api/requirements/file?${params.toString()}`);
+        if (res.ok && isMounted) {
+          const data = await res.json();
+          if (data.exists) {
+            setHasRequirements(true);
+            setReqFileName(data.fileName);
+          } else {
+            setHasRequirements(false);
+            setReqFileName(null);
+          }
+        }
+      } catch (e) {
+        console.warn('Could not check requirements status:', e);
+      }
+    };
+
+    const checkTestCases = async () => {
+      try {
+        const testcasesFolderId = activeProject.oneDriveFolder?.subfolders.testcases?.id || '';
+        const params = new URLSearchParams({
+          userId: user.id,
+          projectId: activeProject.id,
+          apiName: spec.name,
+          testcasesFolderId,
+        });
+        const res = await fetch(`/api/testcases/check?${params.toString()}`);
+        if (res.ok && isMounted) {
+          const data = await res.json();
+          if (data.exists) {
+            setHasTestCases(true);
+            setTestCasesCount(Array.isArray(data.testCases) ? data.testCases.length : 0);
+            setTcFileName(data.fileName || null);
+          } else {
+            setHasTestCases(false);
+            setTestCasesCount(0);
+            setTcFileName(null);
+          }
+        }
+      } catch (e) {
+        console.warn('Could not check test cases status:', e);
+      }
+    };
+
+    checkReq();
+    checkTestCases();
+    return () => {
+      isMounted = false;
+    };
+  }, [user?.id, activeProject?.id, spec.name]);
+
+  const handleGenerateRequirements = async (forceOverwrite: boolean = false) => {
+    if (!user || !activeProject) return;
+    setIsGenerating(true);
+    try {
+      const apisFolderId = activeProject.oneDriveFolder?.subfolders.apis?.id || '';
+      const reqsFolderId = activeProject.oneDriveFolder?.subfolders.requirements?.id || '';
+
+      const res = await fetch('/api/requirements/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user.id,
+          projectId: activeProject.id,
+          apiId: spec.id,
+          apiName: spec.name,
+          apisFolderId,
+          reqsFolderId,
+          apiSpec: spec,
+          forceOverwrite,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || 'Failed to generate requirements.');
+      }
+
+      if (data.status === 'diff_required') {
+        setDiffData({
+          apiId: spec.id,
+          apiName: spec.name,
+          fileName: data.fileName,
+          existingContent: data.existingContent,
+          newContent: data.newContent,
+          existingFileId: data.fileId,
+          provider: data.provider,
+          model: data.model,
+          isFallback: data.isFallback,
+        });
+        return;
+      }
+
+      if (data.status === 'saved') {
+        setHasRequirements(true);
+        setReqFileName(data.fileName);
+        showToast({
+          type: 'success',
+          title: 'Requirements Generated',
+          description: `Saved to OneDrive "requirements/${data.fileName}".`,
+        });
+
+        if (onViewRequirements) {
+          onViewRequirements(spec.id);
+        }
+      }
+    } catch (err: any) {
+      showToast({
+        type: 'error',
+        title: 'Generation Failed',
+        description: err.message || 'Could not generate requirements.',
+      });
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleConfirmOverwrite = async (diff: RequirementsDiffData) => {
+    setIsOverwriting(true);
+    try {
+      const reqsFolderId = activeProject?.oneDriveFolder?.subfolders.requirements?.id || '';
+      const res = await fetch('/api/requirements/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user?.id,
+          projectId: activeProject?.id,
+          apiName: diff.apiName,
+          fileName: diff.fileName,
+          content: diff.newContent,
+          reqsFolderId,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || 'Failed to overwrite requirements.');
+      }
+
+      setHasRequirements(true);
+      setReqFileName(diff.fileName);
+      setDiffData(null);
+
+      showToast({
+        type: 'success',
+        title: 'Requirements Overwritten',
+        description: `Updated ${diff.fileName} in OneDrive.`,
+      });
+
+      if (onViewRequirements) {
+        onViewRequirements(spec.id);
+      }
+    } catch (err: any) {
+      showToast({
+        type: 'error',
+        title: 'Overwrite Failed',
+        description: err.message || 'Could not overwrite requirements.',
+      });
+    } finally {
+      setIsOverwriting(false);
+    }
+  };
   const [expandedEndpoints, setExpandedEndpoints] = useState<Record<string, boolean>>(() => {
     // Expand first endpoint by default
     const initial: Record<string, boolean> = {};
@@ -148,7 +346,47 @@ export function ApiDetailView({
           <span className="text-xs text-stone-500 font-medium">Specification Details</span>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {hasRequirements && onViewRequirements && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onViewRequirements(spec.id)}
+              leftIcon={<FileText className="w-3.5 h-3.5 text-indigo-600" />}
+            >
+              View Requirements
+            </Button>
+          )}
+
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => handleGenerateRequirements(false)}
+            disabled={isGenerating}
+            isLoading={isGenerating}
+            leftIcon={<Sparkles className="w-3.5 h-3.5 text-amber-300" />}
+            className="bg-indigo-600 hover:bg-indigo-700"
+          >
+            {hasRequirements ? 'Regenerate Requirements' : 'Generate Requirements'}
+          </Button>
+
+          {/* Generate / View Test Cases: Available once an API has requirements */}
+          {hasRequirements && onViewTestCases && (
+            <Button
+              variant={hasTestCases ? 'outline' : 'primary'}
+              size="sm"
+              onClick={() => onViewTestCases(spec.id)}
+              leftIcon={<CheckSquare className={`w-3.5 h-3.5 ${hasTestCases ? 'text-purple-600' : 'text-purple-200'}`} />}
+              className={
+                hasTestCases
+                  ? 'border-purple-200 text-purple-700 hover:bg-purple-50'
+                  : 'bg-purple-600 hover:bg-purple-700 text-white shadow-xs'
+              }
+            >
+              {hasTestCases ? `View Test Cases (${testCasesCount})` : 'Generate Test Cases'}
+            </Button>
+          )}
+
           {spec.oneDriveWebUrl && (
             <Button
               variant="outline"
@@ -162,7 +400,7 @@ export function ApiDetailView({
           )}
 
           <Button
-            variant="primary"
+            variant="outline"
             size="sm"
             onClick={() => onEdit(spec)}
             leftIcon={<Edit2 className="w-3.5 h-3.5" />}
@@ -231,6 +469,17 @@ export function ApiDetailView({
                 <Cloud className="w-3 h-3" />
                 <span>Synchronized with OneDrive</span>
               </div>
+            )}
+            {hasRequirements && (
+              <button
+                type="button"
+                onClick={() => onViewRequirements?.(spec.id)}
+                className="flex items-center gap-1 text-[11px] text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2 py-0.5 rounded border border-emerald-200 mt-1 transition-colors cursor-pointer text-left"
+                title="View requirements specification"
+              >
+                <FileText className="w-3 h-3 text-emerald-600 shrink-0" />
+                <span>Requirements Ready {reqFileName ? `(${reqFileName})` : ''}</span>
+              </button>
             )}
           </div>
         </div>
@@ -595,6 +844,16 @@ export function ApiDetailView({
             </div>
           </div>
         </div>
+      )}
+
+      {diffData && (
+        <RequirementsDiffModal
+          isOpen={Boolean(diffData)}
+          onClose={() => setDiffData(null)}
+          diffData={diffData}
+          onConfirmOverwrite={handleConfirmOverwrite}
+          isOverwriting={isOverwriting}
+        />
       )}
     </div>
   );

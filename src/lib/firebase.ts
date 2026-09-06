@@ -38,3 +38,24 @@ if (isFirebaseConfigured) {
 }
 
 export { app, auth, db, microsoftProvider, firebaseConfig };
+
+/**
+ * Recursively strips undefined values so Firestore does not throw:
+ * "Unsupported field value: undefined"
+ */
+export function cleanForFirestore<T>(data: T): T {
+  if (data === null || data === undefined) return data;
+  if (Array.isArray(data)) {
+    return data.map((item) => cleanForFirestore(item)) as unknown as T;
+  }
+  if (typeof data === 'object') {
+    const cleaned: Record<string, any> = {};
+    for (const [k, v] of Object.entries(data as Record<string, any>)) {
+      if (v !== undefined) {
+        cleaned[k] = cleanForFirestore(v);
+      }
+    }
+    return cleaned as T;
+  }
+  return data;
+}

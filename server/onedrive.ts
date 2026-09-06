@@ -389,7 +389,7 @@ export async function getGraphFileContent(
 // ==========================================
 // In-Memory Demo Storage for Sandbox Mode
 // ==========================================
-interface DemoItem {
+export interface DemoItem {
   id: string;
   name: string;
   size: number;
@@ -535,3 +535,46 @@ export function getDemoFileContent(projectId: string, itemId: string): string | 
   const found = files.find((f) => f.id === itemId);
   return found?.content || null;
 }
+
+export function findDemoFileByName(
+  projectId: string,
+  fileName: string,
+  category?: 'apis' | 'requirements' | 'testcases' | 'reports'
+): DemoItem | null {
+  const files = getDemoProjectFiles(projectId);
+  const lowerName = fileName.toLowerCase();
+  return (
+    files.find(
+      (f) =>
+        f.name.toLowerCase() === lowerName &&
+        (!category || f.category === category)
+    ) || null
+  );
+}
+
+export function updateOrCreateDemoFile(
+  projectId: string,
+  file: {
+    name: string;
+    category: 'apis' | 'requirements' | 'testcases' | 'reports';
+    content: string;
+    folderId: string;
+  }
+): DemoItem {
+  const files = getDemoProjectFiles(projectId);
+  const now = new Date().toISOString();
+  const lowerName = file.name.toLowerCase();
+  const existing = files.find(
+    (f) => f.name.toLowerCase() === lowerName && f.category === file.category
+  );
+
+  if (existing) {
+    existing.content = file.content;
+    existing.size = Buffer.byteLength(file.content, 'utf8');
+    existing.lastModifiedDateTime = now;
+    return existing;
+  }
+
+  return addDemoFile(projectId, file);
+}
+

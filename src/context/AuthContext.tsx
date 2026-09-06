@@ -26,7 +26,7 @@ interface AuthContextType {
   isDemoMode: boolean;
   signInWithEmail: (email: string, pass: string) => Promise<void>;
   signUpWithEmail: (email: string, pass: string) => Promise<void>;
-  signInWithMicrosoft: () => Promise<void>;
+  signInWithMicrosoft: (preferredEmail?: string) => Promise<void>;
   signInAsDemo: (demoEmail?: string) => void;
   signOutUser: () => Promise<void>;
 }
@@ -120,22 +120,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const signInWithMicrosoft = async (): Promise<void> => {
+  const signInWithMicrosoft = async (preferredEmail?: string): Promise<void> => {
     if (isFirebaseConfigured && auth && microsoftProvider) {
-      const res = await signInWithPopup(auth, microsoftProvider);
-      setUser({
-        id: res.user.uid,
-        email: res.user.email || 'engineer@enterprise.onmicrosoft.com',
-        displayName: res.user.displayName || undefined,
-        photoURL: res.user.photoURL || undefined,
-        provider: 'microsoft.com',
-      });
+      try {
+        if (preferredEmail) {
+          microsoftProvider.setCustomParameters({
+            prompt: 'select_account',
+            login_hint: preferredEmail.trim(),
+          });
+        }
+        const res = await signInWithPopup(auth, microsoftProvider);
+        setUser({
+          id: res.user.uid,
+          email: res.user.email || preferredEmail || 'engineer@enterprise.onmicrosoft.com',
+          displayName: res.user.displayName || undefined,
+          photoURL: res.user.photoURL || undefined,
+          provider: 'microsoft.com',
+        });
+      } catch (err: any) {
+        if (err?.code === 'auth/popup-blocked' || err?.code === 'auth/cancelled-popup-request') {
+          throw new Error('Authentication popup was blocked. Please allow popups or use demo mode.');
+        }
+        throw err;
+      }
     } else {
       // Local fallback for Microsoft OAuth simulation
+      const cleanEmail = preferredEmail?.trim().toLowerCase();
+      const emailToUse = cleanEmail || 'qa.lead@enterprise.onmicrosoft.com';
+      const nameParts = emailToUse.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
       const msUser: User = {
-        id: 'usr_ms_enterprise_qa',
-        email: 'qa.lead@enterprise.onmicrosoft.com',
-        displayName: 'Enterprise QA Lead',
+        id: `usr_ms_${emailToUse.replace(/[^a-zA-Z0-9]/g, '_')}`,
+        email: emailToUse,
+        displayName: `${nameParts} (Microsoft)`,
         provider: 'microsoft.com',
       };
       saveDemoUser(msUser);

@@ -1,5 +1,5 @@
 import type { ApiReference, ApiSpec } from '../types';
-import { db, isFirebaseConfigured } from './firebase';
+import { db, isFirebaseConfigured, cleanForFirestore } from './firebase';
 import {
   collection,
   doc,
@@ -372,8 +372,8 @@ export async function saveApiRecord(
   if (isFirebaseConfigured && db) {
     try {
       await Promise.all([
-        setDoc(doc(db, 'apis', finalSpec.id), reference, { merge: true }),
-        setDoc(doc(db, 'api_specs', finalSpec.id), finalSpec, { merge: true }),
+        setDoc(doc(db, 'apis', finalSpec.id), cleanForFirestore(reference), { merge: true }),
+        setDoc(doc(db, 'api_specs', finalSpec.id), cleanForFirestore(finalSpec), { merge: true }),
       ]);
     } catch (err) {
       console.warn('Failed to save API reference to Firestore:', err);

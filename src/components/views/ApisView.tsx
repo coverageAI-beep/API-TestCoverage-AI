@@ -31,7 +31,7 @@ import {
 } from 'lucide-react';
 
 interface ApisViewProps {
-  onNavigate: (view: NavigationView) => void;
+  onNavigate: (view: NavigationView, payload?: string) => void;
 }
 
 export function ApisView({ onNavigate }: ApisViewProps) {
@@ -372,6 +372,8 @@ export function ApisView({ onNavigate }: ApisViewProps) {
           }}
           onEdit={(spec) => handleEditApi(spec)}
           onDelete={(spec) => setDeleteTarget(spec)}
+          onViewRequirements={(apiId) => onNavigate('requirements', apiId)}
+          onViewTestCases={(apiId) => onNavigate('test-cases', apiId)}
         />
 
         {/* Edit Modal from Detail View */}
@@ -577,6 +579,8 @@ export function ApisView({ onNavigate }: ApisViewProps) {
               onSelect={handleSelectApi}
               onEdit={handleEditApi}
               onDelete={(target) => setDeleteTarget(target)}
+              onViewRequirements={(apiRef) => onNavigate('requirements', apiRef.id)}
+              onViewTestCases={(apiRef) => onNavigate('test-cases', apiRef.id)}
             />
           ))}
         </div>

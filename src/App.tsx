@@ -11,12 +11,25 @@ import { DashboardView } from './components/views/DashboardView';
 import { SettingsView } from './components/views/SettingsView';
 import { FilesView } from './components/views/FilesView';
 import { ApisView } from './components/views/ApisView';
+import { RequirementsView } from './components/views/RequirementsView';
+import { TestCasesView } from './components/views/TestCasesView';
 import { PlaceholderView } from './components/views/PlaceholderView';
 import { ShieldCheck, Loader2 } from 'lucide-react';
 
 function MainApp() {
   const { user, loading } = useAuth();
   const [currentView, setCurrentView] = useState<NavigationView>('projects');
+  const [selectedRequirementsApiId, setSelectedRequirementsApiId] = useState<string | null>(null);
+  const [selectedTestCasesApiId, setSelectedTestCasesApiId] = useState<string | null>(null);
+
+  const handleNavigate = (view: NavigationView, payload?: string) => {
+    if (view === 'requirements') {
+      setSelectedRequirementsApiId(payload || null);
+    } else if (view === 'test-cases') {
+      setSelectedTestCasesApiId(payload || null);
+    }
+    setCurrentView(view);
+  };
 
   if (loading) {
     return (
@@ -39,22 +52,31 @@ function MainApp() {
   return (
     <OneDriveProvider>
       <ProjectProvider>
-        <AppShell currentView={currentView} onNavigate={setCurrentView}>
+        <AppShell currentView={currentView} onNavigate={handleNavigate}>
           {currentView === 'projects' && (
-            <ProjectList onNavigateView={setCurrentView} />
+            <ProjectList onNavigateView={handleNavigate} />
           )}
           {currentView === 'dashboard' && (
-            <DashboardView onNavigate={setCurrentView} />
+            <DashboardView onNavigate={handleNavigate} />
           )}
           {currentView === 'files' && (
-            <FilesView onNavigate={setCurrentView} />
+            <FilesView onNavigate={handleNavigate} />
           )}
           {currentView === 'apis' && (
-            <ApisView onNavigate={setCurrentView} />
+            <ApisView onNavigate={handleNavigate} />
+          )}
+          {currentView === 'requirements' && (
+            <RequirementsView
+              onNavigate={handleNavigate}
+              initialSelectedApiId={selectedRequirementsApiId}
+            />
           )}
           {currentView === 'settings' && <SettingsView />}
-          {['requirements', 'test-cases'].includes(currentView) && (
-            <PlaceholderView view={currentView} onNavigate={setCurrentView} />
+          {currentView === 'test-cases' && (
+            <TestCasesView
+              onNavigate={handleNavigate}
+              initialSelectedApiId={selectedTestCasesApiId}
+            />
           )}
         </AppShell>
       </ProjectProvider>

@@ -12,6 +12,7 @@ import {
   Shield,
   Clock,
   MoreVertical,
+  FileText,
 } from 'lucide-react';
 
 interface ApiCardProps {
@@ -20,9 +21,18 @@ interface ApiCardProps {
   onSelect: (api: ApiReference) => void;
   onEdit: (api: ApiReference) => void;
   onDelete: (api: ApiReference) => void;
+  onViewRequirements?: (api: ApiReference) => void;
+  onViewTestCases?: (api: ApiReference) => void;
 }
 
-export function ApiCard({ api, onSelect, onEdit, onDelete }: ApiCardProps) {
+export function ApiCard({
+  api,
+  onSelect,
+  onEdit,
+  onDelete,
+  onViewRequirements,
+  onViewTestCases,
+}: ApiCardProps) {
   // Coverage badge helper (placeholder for now as requested)
   const renderCoverageBadge = () => {
     switch (api.coverageStatus) {
@@ -120,6 +130,28 @@ export function ApiCard({ api, onSelect, onEdit, onDelete }: ApiCardProps) {
                 >
                   Edit Specification
                 </DropdownItem>
+                {onViewRequirements && (
+                  <DropdownItem
+                    icon={<FileText className="w-3.5 h-3.5 text-indigo-600" />}
+                    onClick={() => {
+                      close();
+                      onViewRequirements(api);
+                    }}
+                  >
+                    View / Generate Requirements
+                  </DropdownItem>
+                )}
+                {onViewTestCases && (
+                  <DropdownItem
+                    icon={<FileCode2 className="w-3.5 h-3.5 text-purple-600" />}
+                    onClick={() => {
+                      close();
+                      onViewTestCases(api);
+                    }}
+                  >
+                    View / Generate Test Cases
+                  </DropdownItem>
+                )}
                 {api.oneDriveWebUrl && (
                   <DropdownItem
                     icon={<Cloud className="w-3.5 h-3.5 text-indigo-600" />}

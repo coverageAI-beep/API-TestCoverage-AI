@@ -178,83 +178,25 @@ export function Sidebar({ currentView, onNavigate }: SidebarProps) {
         </div>
       </div>
 
-      {/* Footer section: Local mode indicator + User Profile dropdown */}
-      <div className="border-t border-stone-200 bg-stone-100/50">
+      {/* Footer section: Quick status and settings link */}
+      <div className="border-t border-stone-200 bg-stone-100/50 p-3 flex flex-col gap-2">
         {isDemoMode && (
-          <div className="px-3 pt-2.5">
-            <div className="px-2 py-1 rounded bg-stone-200/70 border border-stone-300/60 text-[10px] font-mono text-stone-600 flex items-center gap-1.5">
-              <Sparkles className="w-3 h-3 text-indigo-600 shrink-0" />
-              <span className="truncate font-sans font-medium">Demo Mode</span>
-            </div>
+          <div className="px-2 py-1 rounded bg-stone-200/70 border border-stone-300/60 text-[10px] font-mono text-stone-600 flex items-center gap-1.5">
+            <Sparkles className="w-3 h-3 text-indigo-600 shrink-0" />
+            <span className="truncate font-sans font-medium">Sandbox Mode Active</span>
           </div>
         )}
-
-        <div className="p-4">
-          <Dropdown
-            className="w-54"
-            align="left"
-            trigger={({ toggle }) => (
-              <button
-                type="button"
-                onClick={toggle}
-                className="w-full flex items-center justify-between p-1 rounded-lg hover:bg-stone-200/60 text-left transition-colors cursor-pointer group"
-              >
-                <div className="flex items-center space-x-3 min-w-0">
-                  <div className="w-8 h-8 rounded-full bg-stone-300 flex items-center justify-center text-xs font-medium text-stone-700 shrink-0">
-                    {getInitials(user?.displayName || user?.email || 'Jane Doe')}
-                  </div>
-                  <div className="flex flex-col truncate">
-                    <span className="text-xs font-semibold text-stone-900 truncate leading-tight">
-                      {user?.displayName || 'Jane Doe'}
-                    </span>
-                    <span className="text-[10px] text-stone-500 truncate leading-tight">
-                      {user?.email || 'jane@acme.inc'}
-                    </span>
-                  </div>
-                </div>
-                <ChevronDown className="w-3 h-3 text-stone-400 group-hover:text-stone-700 shrink-0 ml-1" />
-              </button>
-            )}
-          >
-            {({ close }) => (
-              <>
-                <div className="px-2.5 py-2 border-b border-stone-100">
-                  <p className="text-xs font-semibold text-stone-900 truncate">
-                    {user?.displayName || 'Jane Doe'}
-                  </p>
-                  <p className="text-[11px] text-stone-500 truncate font-mono">
-                    {user?.email || 'jane@acme.inc'}
-                  </p>
-                  <span className="inline-block mt-1 px-1.5 py-0.5 rounded text-[10px] font-mono text-stone-600 bg-stone-100">
-                    Auth: {user?.provider || 'local'}
-                  </span>
-                </div>
-                <div className="py-1">
-                  <DropdownItem
-                    icon={<UserIcon className="w-3.5 h-3.5" />}
-                    onClick={() => {
-                      close();
-                      onNavigate('settings');
-                    }}
-                  >
-                    Account Settings
-                  </DropdownItem>
-                  <div className="my-1 border-t border-stone-100" />
-                  <DropdownItem
-                    destructive
-                    icon={<LogOut className="w-3.5 h-3.5" />}
-                    onClick={() => {
-                      close();
-                      signOutUser();
-                    }}
-                  >
-                    Sign Out
-                  </DropdownItem>
-                </div>
-              </>
-            )}
-          </Dropdown>
-        </div>
+        <button
+          type="button"
+          onClick={() => onNavigate('settings')}
+          className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-md hover:bg-stone-200/60 text-stone-600 hover:text-stone-900 transition-colors text-xs cursor-pointer group"
+        >
+          <div className="flex items-center gap-2">
+            <Settings className="w-3.5 h-3.5 text-stone-500 group-hover:text-stone-800" />
+            <span className="font-medium">System Settings</span>
+          </div>
+          <span className="text-[10px] text-stone-400 font-mono">v1.2.0</span>
+        </button>
       </div>
     </aside>
   );

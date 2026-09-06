@@ -1,0 +1,13 @@
+{
+  "test_qa_user": {
+    "accessToken": "DEMO_ACCESS_TOKEN",
+    "refreshToken": "DEMO_REFRESH_TOKEN",
+    "expiresAt": 1820158010109,
+    "connectedAt": "2026-09-05T15:26:50.109Z",
+    "account": {
+      "email": "kchenchaiah13@gmail.com",
+      "name": "Chenchaiah"
+    },
+    "isDemo": true
+  }
+}

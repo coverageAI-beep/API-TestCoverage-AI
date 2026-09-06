@@ -30,6 +30,22 @@ import {
   testProviderConnection,
   type AiProviderId,
 } from './server/aiSecrets';
+import {
+  loadApiDefinitionFromOneDrive,
+  checkExistingRequirements,
+  saveRequirementsFileToOneDrive,
+  listRequirementsFiles,
+  sanitizeFileName,
+} from './server/requirementsService';
+import {
+  checkExistingTestCases,
+  saveTestCasesToOneDrive,
+  listTestCasesFiles,
+} from './server/testCasesService';
+import {
+  generateRequirementsWithAi,
+  generateTestCasesWithAi,
+} from './server/aiGenerator';
 
 async function startServer() {
   const app = express();
@@ -753,6 +769,392 @@ async function startServer() {
         success: false,
         message: err.message || 'Connection test encountered an internal error',
         latencyMs: 0,
+      });
+    }
+  });
+
+  // ==========================================
+  // Requirements Generation & Management Routes
+  // ==========================================
+
+  // 1. List all requirements files in the project's OneDrive "requirements" folder
+  app.get('/api/requirements/list', async (req: Request, res: Response) => {
+    const userId = (req.query.userId as string) || '';
+    const projectId = (req.query.projectId as string) || '';
+    const reqsFolderId = (req.query.reqsFolderId as string) || '';
+
+    if (!userId || !projectId) {
+      res.status(400).json({ error: 'userId and projectId are required' });
+      return;
+    }
+
+    try {
+      const files = await listRequirementsFiles(userId, projectId, reqsFolderId);
+      res.json({ files });
+    } catch (err: any) {
+      console.error('Failed to list requirements files:', err);
+      res.status(500).json({ error: err.message || 'Failed to list requirements files' });
+    }
+  });
+
+  // 2. Get specific requirements file content
+  app.get('/api/requirements/file', async (req: Request, res: Response) => {
+    const userId = (req.query.userId as string) || '';
+    const projectId = (req.query.projectId as string) || '';
+    const apiName = (req.query.apiName as string) || '';
+    const reqsFolderId = (req.query.reqsFolderId as string) || '';
+    const itemId = (req.query.itemId as string) || '';
+
+    if (!userId || !projectId) {
+      res.status(400).json({ error: 'userId and projectId are required' });
+      return;
+    }
+
+    try {
+      // If itemId is given, fetch direct content
+      if (itemId) {
+        const tokens = getStoredTokens(userId);
+        if (tokens?.isDemo) {
+          const content = getDemoFileContent(projectId, itemId) || '';
+          res.json({ content, itemId });
+          return;
+        }
+        const accessToken = await getValidAccessToken(userId);
+        const content = await getGraphFileContent(accessToken, itemId);
+        res.json({ content, itemId });
+        return;
+      }
+
+      // Check existing requirements by API name
+      const existing = await checkExistingRequirements(userId, projectId, apiName, reqsFolderId);
+      if (existing.exists) {
+        res.json({
+          exists: true,
+          content: existing.content || '',
+          fileName: existing.fileName,
+          fileId: existing.fileId,
+          webUrl: existing.webUrl,
+        });
+      } else {
+        res.json({ exists: false, content: null });
+      }
+    } catch (err: any) {
+      console.error('Failed to fetch requirements file content:', err);
+      res.status(500).json({ error: err.message || 'Failed to fetch requirements content' });
+    }
+  });
+
+  // 3. Generate Requirements using AI
+  // Step 1: Load API definition from OneDrive "apis" folder via Microsoft Graph
+  // Step 2: Check if requirements already exist for this API. If exists and !forceOverwrite, return diff_required
+  // Step 3: Call selected AI provider with stored key
+  // Step 4: Save result to OneDrive "requirements" folder via Microsoft Graph
+  app.post('/api/requirements/generate', async (req: Request, res: Response) => {
+    const {
+      userId,
+      projectId,
+      apiId,
+      apiName,
+      apisFolderId,
+      reqsFolderId,
+      apiSpec,
+      provider,
+      forceOverwrite,
+    } = req.body;
+
+    if (!userId || !projectId || !apiName) {
+      res.status(400).json({
+        error: 'userId, projectId, and apiName are required',
+      });
+      return;
+    }
+
+    try {
+      // 1. Check existing requirements first
+      const existing = await checkExistingRequirements(userId, projectId, apiName, reqsFolderId);
+
+      // 2. Load the full API definition from the OneDrive "apis" folder via Microsoft Graph
+      const apiDefinition = await loadApiDefinitionFromOneDrive(
+        userId,
+        projectId,
+        apiName,
+        apisFolderId,
+        apiSpec
+      );
+
+      // 3. Call AI provider
+      const generationResult = await generateRequirementsWithAi(
+        userId,
+        apiDefinition,
+        provider as AiProviderId
+      );
+
+      const cleanName = sanitizeFileName(apiName);
+      const reqFileName = `${cleanName}-requirements.md`;
+
+      // 4. If requirements already exist and user hasn't confirmed overwrite, show diff
+      if (existing.exists && existing.content && !forceOverwrite) {
+        res.json({
+          status: 'diff_required',
+          existingContent: existing.content,
+          newContent: generationResult.markdown,
+          fileName: existing.fileName || reqFileName,
+          fileId: existing.fileId,
+          apiId,
+          apiName,
+          provider: generationResult.provider,
+          model: generationResult.model,
+          isFallback: generationResult.isFallback,
+        });
+        return;
+      }
+
+      // 5. Save generated document to OneDrive "requirements" folder
+      const savedFile = await saveRequirementsFileToOneDrive(
+        userId,
+        projectId,
+        reqFileName,
+        generationResult.markdown,
+        reqsFolderId
+      );
+
+      res.json({
+        status: 'saved',
+        content: generationResult.markdown,
+        fileName: savedFile.name,
+        fileId: savedFile.id,
+        webUrl: savedFile.webUrl,
+        apiId,
+        apiName,
+        provider: generationResult.provider,
+        model: generationResult.model,
+        isFallback: generationResult.isFallback,
+      });
+    } catch (err: any) {
+      console.error('Failed to generate requirements:', err);
+      res.status(500).json({
+        error: 'GENERATION_FAILED',
+        message: err.message || 'Failed to generate requirements document',
+      });
+    }
+  });
+
+  // 4. Save modified requirements document directly back to OneDrive file
+  app.post('/api/requirements/save', async (req: Request, res: Response) => {
+    const { userId, projectId, fileName, content, reqsFolderId, apiName } = req.body;
+
+    if (!userId || !projectId || !content) {
+      res.status(400).json({ error: 'userId, projectId, and content are required' });
+      return;
+    }
+
+    const cleanName = sanitizeFileName(apiName || 'api');
+    const finalFileName = fileName || `${cleanName}-requirements.md`;
+
+    try {
+      const saved = await saveRequirementsFileToOneDrive(
+        userId,
+        projectId,
+        finalFileName,
+        content,
+        reqsFolderId
+      );
+
+      res.json({
+        success: true,
+        file: saved,
+      });
+    } catch (err: any) {
+      console.error('Failed to save requirements file to OneDrive:', err);
+      res.status(500).json({
+        error: 'SAVE_FAILED',
+        message: err.message || 'Failed to save requirements to Microsoft OneDrive',
+      });
+    }
+  });
+
+  // ==========================================
+  // Test Cases Generation & Management Routes
+  // ==========================================
+
+  // 1. Check if test cases already exist for an API
+  app.get('/api/testcases/check', async (req: Request, res: Response) => {
+    const userId = req.query.userId as string;
+    const projectId = req.query.projectId as string;
+    const apiName = req.query.apiName as string;
+    const testcasesFolderId = req.query.testcasesFolderId as string;
+
+    if (!userId || !projectId || !apiName) {
+      res.status(400).json({ error: 'userId, projectId, and apiName are required' });
+      return;
+    }
+
+    try {
+      const status = await checkExistingTestCases(userId, projectId, apiName, testcasesFolderId);
+      res.json(status);
+    } catch (err: any) {
+      console.error('Error checking test cases:', err);
+      res.status(500).json({ error: 'CHECK_FAILED', message: err.message });
+    }
+  });
+
+  // 2. List all test case files for a project
+  app.get('/api/testcases/list', async (req: Request, res: Response) => {
+    const userId = req.query.userId as string;
+    const projectId = req.query.projectId as string;
+    const testcasesFolderId = req.query.testcasesFolderId as string;
+
+    if (!userId || !projectId) {
+      res.status(400).json({ error: 'userId and projectId are required' });
+      return;
+    }
+
+    try {
+      const files = await listTestCasesFiles(userId, projectId, testcasesFolderId);
+      res.json({ files });
+    } catch (err: any) {
+      console.error('Error listing test case files:', err);
+      res.status(500).json({ error: 'LIST_FAILED', message: err.message });
+    }
+  });
+
+  // 3. Generate structured test cases via AI provider (requires requirements to exist)
+  app.post('/api/testcases/generate', async (req: Request, res: Response) => {
+    const {
+      userId,
+      projectId,
+      apiId,
+      apiName,
+      apiSpec,
+      requirementsContent,
+      apisFolderId,
+      reqsFolderId,
+      testcasesFolderId,
+      provider,
+    } = req.body;
+
+    if (!userId || !projectId || !apiName) {
+      res.status(400).json({ error: 'userId, projectId, and apiName are required' });
+      return;
+    }
+
+    try {
+      // Step A: Load or verify requirements document
+      let finalRequirements = requirementsContent || '';
+      if (!finalRequirements) {
+        const reqsCheck = await checkExistingRequirements(userId, projectId, apiName, reqsFolderId);
+        if (reqsCheck.exists && reqsCheck.content) {
+          finalRequirements = reqsCheck.content;
+        }
+      }
+
+      if (!finalRequirements || finalRequirements.trim().length === 0) {
+        res.status(400).json({
+          error: 'REQUIREMENTS_REQUIRED',
+          message: `Requirements specification document must exist before test cases can be generated for "${apiName}". Please generate or write requirements first.`,
+        });
+        return;
+      }
+
+      // Step B: Load API contract definition
+      const apiDefinition = await loadApiDefinitionFromOneDrive(
+        userId,
+        projectId,
+        apiName,
+        apisFolderId,
+        apiSpec
+      );
+
+      // Step C: Call AI Generator for structured test suite
+      const result = await generateTestCasesWithAi(
+        apiDefinition,
+        finalRequirements,
+        userId,
+        provider as AiProviderId
+      );
+
+      const cleanName = sanitizeFileName(apiName);
+      const fileName = `${cleanName}-testcases.json`;
+
+      // Step D: Save result immediately to OneDrive "testcases" folder via Microsoft Graph
+      const savedFile = await saveTestCasesToOneDrive(
+        userId,
+        projectId,
+        fileName,
+        result.testCases,
+        testcasesFolderId,
+        apiId,
+        apiName,
+        result.provider,
+        result.model
+      );
+
+      res.json({
+        success: true,
+        testCases: result.testCases,
+        fileName: savedFile.name,
+        fileId: savedFile.id,
+        webUrl: savedFile.webUrl,
+        apiId,
+        apiName,
+        provider: result.provider,
+        model: result.model,
+        isFallback: result.isFallback,
+      });
+    } catch (err: any) {
+      console.error('Failed to generate test cases:', err);
+      res.status(500).json({
+        error: 'GENERATION_FAILED',
+        message: err.message || 'Failed to generate test cases',
+      });
+    }
+  });
+
+  // 4. Save modified test cases directly back to OneDrive JSON file
+  app.post('/api/testcases/save', async (req: Request, res: Response) => {
+    const {
+      userId,
+      projectId,
+      apiId,
+      apiName,
+      fileName,
+      testCases,
+      testcasesFolderId,
+      provider,
+      model,
+    } = req.body;
+
+    if (!userId || !projectId || !Array.isArray(testCases)) {
+      res.status(400).json({ error: 'userId, projectId, and testCases array are required' });
+      return;
+    }
+
+    const cleanName = sanitizeFileName(apiName || 'api');
+    const finalFileName = fileName || `${cleanName}-testcases.json`;
+
+    try {
+      const saved = await saveTestCasesToOneDrive(
+        userId,
+        projectId,
+        finalFileName,
+        testCases,
+        testcasesFolderId,
+        apiId,
+        apiName,
+        provider,
+        model
+      );
+
+      res.json({
+        success: true,
+        file: saved,
+        testCases,
+      });
+    } catch (err: any) {
+      console.error('Failed to save test cases to OneDrive:', err);
+      res.status(500).json({
+        error: 'SAVE_FAILED',
+        message: err.message || 'Failed to save test cases to Microsoft OneDrive',
       });
     }
   });

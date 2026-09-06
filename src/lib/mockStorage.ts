@@ -1,5 +1,5 @@
 import type { Project, User } from '../types';
-import { db, isFirebaseConfigured } from './firebase';
+import { db, isFirebaseConfigured, cleanForFirestore } from './firebase';
 import {
   collection,
   doc,
@@ -138,8 +138,7 @@ export async function createProjectRecord(
 
   if (isFirebaseConfigured && db) {
     try {
-      await setDoc(doc(db, 'projects', id), newProject);
-      return newProject;
+      await setDoc(doc(db, 'projects', id), cleanForFirestore(newProject));
     } catch (err) {
       console.warn('Failed to write to Firestore, storing in local fallback:', err);
     }
@@ -156,48 +155,66 @@ export async function updateProjectRecord(
   userId: string,
   projectId: string,
   input: {
-    name: string;
+    name?: string;
     description?: string;
     targetEnvironmentUrl?: string;
     oneDriveFolder?: Project['oneDriveFolder'];
+    stats?: Project['stats'];
   }
 ): Promise<Project> {
   const now = new Date().toISOString();
+  const existing = getLocalProjects(userId);
+  const targetIndex = existing.findIndex((p) => p.id === projectId && p.userId === userId);
+
+  const currentProject = targetIndex >= 0 ? existing[targetIndex] : null;
+  const finalName = input.name !== undefined ? input.name.trim() : (currentProject?.name || 'Project');
+  const finalDescription = input.description !== undefined ? input.description.trim() : (currentProject?.description || '');
+  const finalUrl = input.targetEnvironmentUrl !== undefined ? input.targetEnvironmentUrl.trim() : currentProject?.targetEnvironmentUrl;
+  const finalFolder = input.oneDriveFolder !== undefined ? input.oneDriveFolder : currentProject?.oneDriveFolder;
+  const finalStats = input.stats !== undefined ? input.stats : currentProject?.stats;
 
   if (isFirebaseConfigured && db) {
     try {
       const docRef = doc(db, 'projects', projectId);
       const updates: Record<string, unknown> = {
-        name: input.name.trim(),
-        description: (input.description || '').trim(),
-        targetEnvironmentUrl: input.targetEnvironmentUrl?.trim() || '',
+        name: finalName,
+        description: finalDescription,
         updatedAt: now,
       };
-      if (input.oneDriveFolder !== undefined) {
-        updates.oneDriveFolder = input.oneDriveFolder;
-      }
-      await updateDoc(docRef, updates);
+      if (finalUrl !== undefined) updates.targetEnvironmentUrl = finalUrl;
+      if (finalFolder !== undefined) updates.oneDriveFolder = finalFolder;
+      if (finalStats !== undefined) updates.stats = finalStats;
+
+      await updateDoc(docRef, cleanForFirestore(updates));
     } catch (err) {
       console.warn('Failed to update in Firestore, falling back locally:', err);
     }
   }
 
-  const existing = getLocalProjects(userId);
-  const targetIndex = existing.findIndex((p) => p.id === projectId && p.userId === userId);
-  if (targetIndex === -1) {
+  if (targetIndex === -1 && !currentProject) {
     throw new Error('Project not found or unauthorized');
   }
 
   const updatedProject: Project = {
-    ...existing[targetIndex],
-    name: input.name.trim(),
-    description: (input.description || '').trim(),
-    targetEnvironmentUrl: input.targetEnvironmentUrl?.trim() || undefined,
-    oneDriveFolder: input.oneDriveFolder !== undefined ? input.oneDriveFolder : existing[targetIndex].oneDriveFolder,
+    ...(currentProject || {
+      id: projectId,
+      userId,
+      createdAt: now,
+      stats: { apiCount: 0, requirementCount: 0, testCaseCount: 0 },
+    }),
+    name: finalName,
+    description: finalDescription,
+    targetEnvironmentUrl: finalUrl || undefined,
+    oneDriveFolder: finalFolder,
+    stats: finalStats || { apiCount: 0, requirementCount: 0, testCaseCount: 0 },
     updatedAt: now,
   };
 
-  existing[targetIndex] = updatedProject;
+  if (targetIndex >= 0) {
+    existing[targetIndex] = updatedProject;
+  } else {
+    existing.unshift(updatedProject);
+  }
   setLocalProjects(userId, existing);
   return updatedProject;
 }
@@ -208,12 +225,7 @@ export async function updateProjectOneDriveFolder(
   projectId: string,
   folder: Project['oneDriveFolder']
 ): Promise<Project> {
-  const existing = getLocalProjects(userId);
-  const target = existing.find((p) => p.id === projectId && p.userId === userId);
   return updateProjectRecord(userId, projectId, {
-    name: target?.name || '',
-    description: target?.description,
-    targetEnvironmentUrl: target?.targetEnvironmentUrl,
     oneDriveFolder: folder,
   });
 }

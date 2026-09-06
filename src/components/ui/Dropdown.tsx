@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, type ReactNode } from 'react';
 import { cn } from '../../lib/utils';
 
 export interface DropdownProps {
-  trigger: (props: { isOpen: boolean; toggle: () => void }) => ReactNode;
+  trigger: ReactNode | ((props: { isOpen: boolean; toggle: () => void }) => ReactNode);
   children: (props: { close: () => void }) => ReactNode;
   align?: 'left' | 'right';
   className?: string;
@@ -49,7 +49,13 @@ export function Dropdown({
 
   return (
     <div ref={containerRef} className="relative inline-block text-left">
-      {trigger({ isOpen, toggle })}
+      {typeof trigger === 'function' ? (
+        trigger({ isOpen, toggle })
+      ) : (
+        <div onClick={toggle} className="cursor-pointer inline-flex items-center">
+          {trigger}
+        </div>
+      )}
       {isOpen && (
         <div
           className={cn(

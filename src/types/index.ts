@@ -181,3 +181,62 @@ export interface AiProvidersConfigResponse {
   defaultProvider: AiProviderId;
   providers: Record<AiProviderId, AiProviderInfo>;
 }
+
+export interface RequirementDocument {
+  id?: string;
+  apiId: string;
+  apiName: string;
+  fileName: string;
+  content: string;
+  webUrl?: string;
+  lastModifiedDateTime?: string;
+  provider?: AiProviderId;
+  model?: string;
+}
+
+export interface RequirementsDiffData {
+  apiId: string;
+  apiName: string;
+  fileName: string;
+  existingContent: string;
+  newContent: string;
+  existingFileId?: string;
+  provider?: AiProviderId;
+  model?: string;
+  isFallback?: boolean;
+}
+
+export type TestCasePriority = 'High' | 'Medium' | 'Low';
+export type TestCaseType = 'Positive' | 'Negative' | 'Edge' | 'Boundary';
+export type TestCaseSource = 'AI-generated' | 'Manual';
+
+export interface TestCase {
+  id: string;
+  title: string;
+  linkedRequirements: string[];
+  linkedEndpoint: string;
+  preconditions: string;
+  requestPayload: string;
+  expectedResponse: string;
+  assertions: string[];
+  priority: TestCasePriority;
+  type: TestCaseType;
+  source: TestCaseSource;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface TestSuiteDocument {
+  id?: string;
+  apiId: string;
+  apiName: string;
+  fileName: string;
+  webUrl?: string;
+  lastModifiedDateTime?: string;
+  testCases: TestCase[];
+  provider?: AiProviderId;
+  model?: string;
+  generatedAt?: string;
+}
+
+

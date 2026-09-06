@@ -91,10 +91,10 @@ export function AuthCard() {
     setIsMicrosoftLoading(true);
     setGeneralError(null);
     try {
-      await signInWithMicrosoft();
+      await signInWithMicrosoft(email ? email.trim() : undefined);
     } catch (err: unknown) {
       console.error('Microsoft OAuth error:', err);
-      const message = (err as { message?: string })?.message || 'Microsoft Sign-in failed';
+      const message = (err as { message?: string })?.message || 'Microsoft authentication failed';
       setGeneralError(message.replace('Firebase: ', ''));
     } finally {
       setIsMicrosoftLoading(false);
@@ -176,6 +176,8 @@ export function AuthCard() {
             <span>
               {isMicrosoftLoading
                 ? 'Connecting to Microsoft...'
+                : mode === 'signup'
+                ? 'Sign up with Microsoft'
                 : 'Sign in with Microsoft'}
             </span>
           </button>
